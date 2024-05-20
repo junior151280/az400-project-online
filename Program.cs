@@ -1,53 +1,76 @@
 ﻿using System.Net.Http.Headers;
 using Az400_ProjectOnline;
 using System.Text;
+using Microsoft.Identity.Client;
+using static System.Formats.Asn1.AsnWriter;
+using System.Configuration;
 class Program
 {
-    private static readonly string tenantId = "<your-tenant-id>";
-    private static readonly string clientId = "<your-client-id>";
-    private static readonly string clientSecret = "<your-client-secret>";
-    private static readonly string scope = "https://graph.microsoft.com/.default";
+    private static readonly string tenantId = ConfigurationManager.AppSettings["TenantId"];
+    private static readonly string clientId = ConfigurationManager.AppSettings["ClientId"]; 
+    private static readonly string clientSecret = ConfigurationManager.AppSettings["ClientSecret"];
     private static readonly string siteUrl = $"https://{tenantId}.sharepoint.com/sites/pwa";
-    private static readonly string projectId = "<project-id>";
+    private static readonly string projectId = ConfigurationManager.AppSettings["ProjectId"];
+    private static readonly string OAuth = "Client"; // "Client", "User" or ""
 
     static async Task Main()
     {
-        var accessToken = await GetAccessToken();
-        Console.WriteLine("Access token:\n" + accessToken);
+        var accessToken = "";
 
-        var projectDetails = await GetProjectDetails(accessToken);
-        Console.WriteLine("Project details:\n" + projectDetails);
+        if (OAuth == "Client") {
+            IConfidentialClientApplication appClient = ConfidentialClientApplicationBuilder.Create(clientId)
+            .WithClientSecret(clientSecret)
+            .WithAuthority(new Uri($"https://login.microsoftonline.com/{tenantId}"))
+            .WithRedirectUri(AuthorizationCodeFlow.redirectUri)
+            .Build();
 
-        projectDetails = await UpdateProjectDatails(projectId, accessToken);
-        Console.WriteLine("Project details updated successfully\n." + projectDetails);
-    }
+            var authResult = await AuthorizationCodeFlow.AuthenticateClientUser(appClient);
 
-    // The following method is used to get the access token.
-    public static async Task<string> GetAccessToken()
-    {
-        var url = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token";
-        using var client = new HttpClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, url);
-        var content = new FormUrlEncodedContent([
-               new KeyValuePair<string, string>("grant_type", "client_credentials"),
-               new KeyValuePair<string, string>("client_id", clientId),
-               new KeyValuePair<string, string>("client_secret", clientSecret),
-               new KeyValuePair<string, string>("scope", scope),
-        ]);
-        request.Content = content;
-        var response = await client.SendAsync(request);
-        if (response.IsSuccessStatusCode)
-        {
-            var responseBody = await response.Content.ReadAsStringAsync();
-            var tokenResponse = Newtonsoft.Json.JsonConvert.DeserializeObject<TokenResponse>(responseBody);
-            return tokenResponse.access_token;
+            if (authResult != null)
+            {
+                accessToken = authResult.AccessToken;
+            }
+        }
+        else if (OAuth == "User") {
+            var pcaOptions = new PublicClientApplicationOptions
+            {
+                ClientId = clientId,
+                TenantId = tenantId,
+                RedirectUri = AuthorizationCodeFlow.redirectUri
+            };
+
+            var appUser = PublicClientApplicationBuilder
+                       .CreateWithApplicationOptions(pcaOptions)
+                       .Build();
+
+            var authResult = await AuthorizationCodeFlow.AuthenticateUser(appUser);
+
+            if (authResult != null)
+            {
+                accessToken = authResult.AccessToken;
+            }
         }
         else
         {
-            throw new Exception($"Request failed with status code: {response.StatusCode}");
+            accessToken = await AuthorizationCodeFlow.GetAccessToken();
+        }
+
+        if (!string.IsNullOrEmpty(accessToken))
+        {
+            Console.WriteLine("Access token:\n" + accessToken);
+
+            var projectDetails = await GetProjectDetails(accessToken);
+            Console.WriteLine("Project Details:\n" + projectDetails);
+
+            var updatedProjectDetails = await UpdateProjectDatails(projectId, accessToken);
+            Console.WriteLine("Updated Project Details:\n" + updatedProjectDetails);
+        }
+        else
+        {
+            Console.WriteLine("Access token is empty.");
         }
     }
-    
+
     // The following method is used to get the project details.
     public static async Task<string> GetProjectDetails(string accessToken)
     {

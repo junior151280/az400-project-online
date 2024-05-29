@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.Identity.Client;
 using static System.Formats.Asn1.AsnWriter;
 using System.Configuration;
+using Microsoft.Identity.Client.Broker;
 class Program
 {
     private static readonly string tenantId = ConfigurationManager.AppSettings["TenantId"];
@@ -11,7 +12,9 @@ class Program
     private static readonly string clientSecret = ConfigurationManager.AppSettings["ClientSecret"];
     private static readonly string siteUrl = $"https://{tenantId}.sharepoint.com/sites/pwa";
     private static readonly string projectId = ConfigurationManager.AppSettings["ProjectId"];
-    private static readonly string OAuth = "Client"; // "Client", "User" or ""
+    private static readonly string redirectUri = ConfigurationManager.AppSettings["RedirectUri"];
+    private static string Instance = "https://login.microsoftonline.com/";
+    private static readonly string OAuth = "User"; // "Client", "User" or ""
 
     static async Task Main()
     {
@@ -21,7 +24,7 @@ class Program
             IConfidentialClientApplication appClient = ConfidentialClientApplicationBuilder.Create(clientId)
             .WithClientSecret(clientSecret)
             .WithAuthority(new Uri($"https://login.microsoftonline.com/{tenantId}"))
-            .WithRedirectUri(AuthorizationCodeFlow.redirectUri)
+            .WithRedirectUri(redirectUri)
             .Build();
 
             var authResult = await AuthorizationCodeFlow.AuthenticateClientUser(appClient);
@@ -36,12 +39,14 @@ class Program
             {
                 ClientId = clientId,
                 TenantId = tenantId,
-                RedirectUri = AuthorizationCodeFlow.redirectUri
+                RedirectUri = redirectUri
             };
+            BrokerOptions brokerOptions = new BrokerOptions(BrokerOptions.OperatingSystems.Windows);
 
-            var appUser = PublicClientApplicationBuilder
-                       .CreateWithApplicationOptions(pcaOptions)
-                       .Build();
+            var appUser = PublicClientApplicationBuilder.Create(clientId)
+                .WithAuthority($"{Instance}{tenantId}")
+                .WithDefaultRedirectUri()
+                .Build();
 
             var authResult = await AuthorizationCodeFlow.AuthenticateUser(appUser);
 

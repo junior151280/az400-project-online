@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using static System.Formats.Asn1.AsnWriter;
 
+
 namespace Az400_ProjectOnline
 {
     public class AuthorizationCodeFlow
@@ -11,13 +12,13 @@ namespace Az400_ProjectOnline
         private static readonly string clientId = ConfigurationManager.AppSettings["ClientId"];
         private static readonly string tenantId = ConfigurationManager.AppSettings["TenantId"];
         private static readonly string clientSecret = ConfigurationManager.AppSettings["ClientSecret"];
-        public static readonly string redirectUri = ConfigurationManager.AppSettings["RedirectUri"];
+        private static readonly string tenantName = ConfigurationManager.AppSettings["TenantName"];
 
         public static async Task<AuthenticationResult> AuthenticateUser(IPublicClientApplication app)
         {
             try
             {
-                var scopes = new[] { "https://mngenvmcap608089.sharepoint.com/.default" };
+                var scopes = new[] { $"https://{tenantName}.sharepoint.com/.default" };
                 var accounts = await app.GetAccountsAsync();
                 var firstAccount = accounts.FirstOrDefault();
 
@@ -35,7 +36,7 @@ namespace Az400_ProjectOnline
         {
             try
             {
-                var scopes = new[] { "https://mngenvmcap608089.sharepoint.com/.default" };
+                var scopes = new[] { $"https://{tenantName}.sharepoint.com/.default" };
                 var accounts = await app.GetAccountsAsync();
                 var firstAccount = accounts.FirstOrDefault();
 
